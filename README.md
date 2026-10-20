@@ -123,6 +123,15 @@ IoT-GamiSearch/
 └── requirements.txt
 ```
 
+---
 
+## 👥 Kelompok 7
+
+| No | Nama | NIM |
+|---|---|---|
+| 1 | Claria Privana Ratna Wati | 23050974086 |
+| 2 | Briant Tedja Mulya | 23050974087 |
+| 3 | Ayu Aisyah Fatimatu Syahra | 23050974091 |
+| 4 | Muhammad Rifky Wardhana | 23050974104 |
 ---
 

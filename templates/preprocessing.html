@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Text Preprocessing Pipeline Demo{% endblock %}
+{% block content %}
+{% set dc = deltas %}
+
+<header class="page-head">
+  <div>
+    <h1>Text Preprocessing Pipeline Demo</h1>
+    <p class="lede">Every document and every query passes through the same five stages before it is indexed or scored.
+      Paste any text, or pull a random abstract from the corpus, and watch what each stage changes.</p>
+  </div>
+</header>
+
+<section class="section" aria-labelledby="input-title" style="margin-top:28px">
+  <h2 id="input-title" class="sr-only">Input text</h2>
+  <form method="post" action="/preprocessing" class="sheet">
+    <label for="pp-text" class="tiny muted" style="display:block;margin-bottom:8px">Input text</label>
+    <textarea class="field" id="pp-text" name="text">{{ text }}</textarea>
+    <div class="row mt">
+      <button class="btn">Process Text</button>
+      <a class="btn btn-quiet" href="/preprocessing?doc=random">Use a random abstract</a>
+      {% if src_doc %}<span class="tiny muted push">Source: <a href="/document/{{ src_doc[0] }}" class="mono">document D{{ src_doc[1].id }}</a></span>{% endif %}
+    </div>
+  </form>
+</section>
+
+<section class="section" aria-labelledby="stages-title">
+  <div class="section-head row">
+    <h2 id="stages-title">Stage-by-stage output</h2>
+    <span class="push tiny muted">Detected language: <b class="mono">{{ (t.language_detected or 'unsure, using en')|upper }}</b> with {{ t.stemmer }}</span>
+  </div>
+
+  <ol class="stages">
+    <li class="stage">
+      <div>
+        <div class="stage-num">Stage 1</div>
+        <div class="stage-name">Case folding</div>
+        <p class="stage-desc">Every letter is converted to lowercase.</p>
+        <div class="deltas">
+          <span class="delta"><b>{{ dc.case.chars|thousands }}</b> chars</span>
+          <span class="delta {{ 'delta-pos' if dc.case.lowered }}"><b>{{ dc.case.lowered }}</b> lowered</span>
+        </div>
+      </div>
+      <div class="stage-out">{{ t.case_folding }}</div>
+    </li>
+
+    <li class="stage">
+      <div>
+        <div class="stage-num">Stage 2</div>
+        <div class="stage-name">Cleaning</div>
+        <p class="stage-desc">URLs, digits, punctuation and symbols are removed; whitespace is collapsed.</p>
+        <div class="deltas">
+          <span class="delta"><b>{{ dc.clean.before|thousands }} → {{ dc.clean.after|thousands }}</b> chars</span>
+          <span class="delta {{ 'delta-neg' if dc.clean.removed }}"><b>−{{ dc.clean.removed|thousands }}</b> removed</span>
+        </div>
+      </div>
+      <div class="stage-out">{{ t.cleaning }}</div>
+    </li>
+
+    <li class="stage">
+      <div>
+        <div class="stage-num">Stage 3</div>
+        <div class="stage-name">Tokenization</div>
+        <p class="stage-desc">The text is split into word tokens; tokens shorter than 2 letters are dropped.</p>
+        <div class="deltas">
+          <span class="delta"><b>{{ dc.token.tokens }}</b> tokens</span>
+          {% if dc.token.short %}<span class="delta delta-neg"><b>−{{ dc.token.short }}</b> too short</span>{% endif %}
+        </div>
+      </div>
+      <div class="stage-out">{% for x in t.tokens %}<span class="tok">{{ x }}</span>{% else %}<span class="dim">No tokens.</span>{% endfor %}</div>
+    </li>
+
+    <li class="stage">
+      <div>
+        <div class="stage-num">Stage 4</div>
+        <div class="stage-name">Stopword removal</div>
+        <p class="stage-desc">Common words are removed using {{ n_sw_id }} Indonesian and {{ n_sw_en }} English stopwords.</p>
+        <div class="deltas">
+          <span class="delta"><b>{{ dc.stop.before }} → {{ dc.stop.after }}</b> tokens</span>
+          <span class="delta {{ 'delta-neg' if dc.stop.removed }}"><b>−{{ dc.stop.removed }}</b> stopwords</span>
+        </div>
+      </div>
+      <div class="stage-out">{% for x in t.tokens %}<span class="tok {{ 'tok-rm' if x in t.stopwords_removed }}">{{ x }}</span>{% else %}<span class="dim">No tokens.</span>{% endfor %}</div>
+    </li>
+
+    <li class="stage">
+      <div>
+        <div class="stage-num">Stage 5</div>
+        <div class="stage-name">Stemming</div>
+        <p class="stage-desc">Each word is reduced to its root with {{ t.stemmer }}.</p>
+        <div class="deltas">
+          <span class="delta {{ 'delta-pos' if dc.stem.changed }}"><b>{{ dc.stem.changed }}</b> words changed</span>
+          <span class="delta"><b>{{ dc.stem.unique_before }} → {{ dc.stem.unique_after }}</b> unique</span>
+        </div>
+      </div>
+      <div class="stage-out">{% for w, s in t.stem_pairs %}{% if w != s %}<span class="tok tok-st">{{ w }} <em>→</em> {{ s }}</span>{% else %}<span class="tok">{{ s }}</span>{% endif %}{% else %}<span class="dim">No terms.</span>{% endfor %}</div>
+    </li>
+
+    <li class="stage stage-final">
+      <div>
+        <div class="stage-num">Output</div>
+        <div class="stage-name">Terms ready to index</div>
+        <div class="deltas">
+          <span class="delta"><b>{{ dc.stem.terms }}</b> terms</span>
+          <span class="delta"><b>{{ dc.stem.unique_after }}</b> unique</span>
+        </div>
+      </div>
+      <div class="stage-out">{{ t.stems|join(' ') or '—' }}</div>
+    </li>
+  </ol>
+</section>
+
+<section class="section" aria-labelledby="corpus-title">
+  <div class="section-head">
+    <h2 id="corpus-title">Across the whole corpus</h2>
+  </div>
+  <div class="stat-strip" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+    <div class="stat"><span class="stat-badge">Stage 3</span><div class="stat-num">{{ stats.raw_tokens|thousands }}</div><div class="stat-label">Raw tokens</div><div class="stat-note">after stage 3</div></div>
+    <div class="stat"><span class="stat-badge">Stages 4–5</span><div class="stat-num">{{ stats.total_terms|thousands }}</div><div class="stat-label">Indexed terms</div><div class="stat-note">after stages 4 and 5</div></div>
+    <div class="stat"><span class="stat-badge orange">Removed</span><div class="stat-num">{{ '%.1f'|format(100 - 100*stats.total_terms/stats.raw_tokens if stats.raw_tokens else 0) }}<small>%</small></div><div class="stat-label">Tokens dropped</div><div class="stat-note">stopwords and short words</div></div>
+    <div class="stat"><span class="stat-badge orange">Language</span><div class="stat-num">{% for l, n in stats.lang_counts.items() %}{{ l|upper }} {{ n|thousands }}{{ ' / ' if not loop.last }}{% endfor %}</div><div class="stat-label">Documents per language</div><div class="stat-note">detected automatically</div></div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="notes-title">
+  <div class="section-head"><h2 id="notes-title">Method notes</h2></div>
+  <ul class="notes">
+    <li>The dataset is bilingual. A document's language is detected by comparing how many Indonesian and English stopwords it contains.</li>
+    <li>Indonesian text is stemmed with <b>Sastrawi</b> (Nazief–Adriani); English text with the <b>Porter stemmer</b>.</li>
+    <li>Queries are usually short, so each query token is stemmed both ways and the form that exists in the index is kept.</li>
+    <li>Implementation: <code>engine/preprocessing.py</code>.</li>
+  </ul>
+</section>
+{% endblock %}

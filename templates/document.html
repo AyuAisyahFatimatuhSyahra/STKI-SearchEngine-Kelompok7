@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title|truncate(60) }}{% endblock %}
+{% block content %}
+
+<div class="row" style="margin-bottom:22px">
+  {% if q %}<a class="btn btn-quiet btn-sm" href="/search?q={{ q|urlencode }}">← Back to results for “{{ q|truncate(40) }}”</a>{% endif %}
+  <a class="btn btn-quiet btn-sm" href="/dataset">Catalog</a>
+  <a class="btn btn-quiet btn-sm" href="/preprocessing?doc={{ i }}">Preprocess this document</a>
+</div>
+
+<header class="doc-head page-head" style="display:block">
+  <p class="kicker"><span class="mono">D{{ doc.id }}</span>&nbsp; <span class="badge" data-cat="{{ (doc.category or '')|lower|replace(' ', '-') }}">{{ doc.category }}</span></p>
+  <h1>{{ highlight(doc.title, terms) }}</h1>
+  <div class="doc-meta">
+    {% if doc.authors %}<span><b>{{ doc.authors }}</b></span>{% endif %}
+    {% if doc.year %}<span class="mono">{{ doc.year }}</span>{% endif %}
+    {% if doc.venue %}<span><i>{{ doc.venue }}</i></span>{% endif %}
+    <span class="badge badge-lang">{{ doc.language }}</span>
+    {% if doc.url %}<a href="{{ doc.url }}" target="_blank" rel="noopener">Original source{% if doc.doi %} (DOI {{ doc.doi }}){% endif %} ↗</a>{% endif %}
+  </div>
+</header>
+
+<section class="section" aria-labelledby="abs-title" style="margin-top:28px">
+  <h2 id="abs-title" class="sr-only">Abstract</h2>
+  <p class="doc-abstract">{{ highlight(doc.abstract, terms) }}</p>
+  {% if doc.keyword %}<div class="chips mt"><span class="chips-label">Keywords</span>{% for k in doc.keyword.replace(';', ',').split(',') if k.strip() %}<span class="chip chip-quiet">{{ k.strip() }}</span>{% endfor %}</div>{% endif %}
+</section>
+
+{% if detail %}
+<section class="section sheet" aria-labelledby="score-title">
+  <div class="section-head">
+    <h2 id="score-title">Score for the query “{{ q }}”</h2>
+    {% if detail.hit %}<p>Ranked <b>#{{ detail.hit.rank }}</b> of {{ detail.res.results|length|thousands }} relevant documents.</p>{% endif %}
+  </div>
+  {% if detail.hit %}
+    {% set r = detail.hit %}
+    <div class="table-scroll"><table class="table">
+      <thead><tr><th>Term</th><th class="num">tf(t,d)</th><th class="num">idf</th><th class="num">w(t,q)</th><th class="num">w(t,d)</th><th class="num">w(t,q)·w(t,d)</th></tr></thead>
+      <tbody>{% for c in r.contrib %}<tr><td class="strong">{{ c.term }}</td><td class="num">{{ c.tf }}</td><td class="num">{{ (c.wd / c.tf)|num }}</td><td class="num">{{ c.wq|num }}</td><td class="num">{{ c.wd|num }}</td><td class="num">{{ c.prod|num }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <div class="formula mt">cos(q,d) = {{ r.dot|num }} / ( {{ detail.res.query_norm|num }} × {{ r.doc_norm|num }} ) = <span class="k">{{ r.score|num(6) }}</span>  ({{ '%.2f'|format(r.score*100) }}%)</div>
+  {% else %}
+    <p class="muted">This document contains none of the query terms, so its cosine similarity is 0.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<div class="grid-2 section">
+  <section aria-labelledby="weights-title">
+    <div class="section-head">
+      <h2 id="weights-title">VSM weights</h2>
+      <p>Top terms by TF-IDF weight. {{ doc.n_terms }} terms ({{ n_unique }} unique) after preprocessing; vector length |d| = <span class="mono">{{ norm|num }}</span>.</p>
+    </div>
+    <div class="table-scroll"><table class="table">
+      <thead><tr><th>Term</th><th class="num">tf</th><th class="num">df</th><th class="num">idf</th><th class="num">w = tf × idf</th></tr></thead>
+      <tbody>{% for t in top %}<tr><td><a class="term-link" href="/search?q={{ t.term|urlencode }}">{{ t.term }}</a></td><td class="num">{{ t.tf }}</td><td class="num">{{ t.df }}</td><td class="num">{{ t.idf|num }}</td><td class="num strong">{{ t.w|num }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  <section aria-labelledby="sim-title">
+    <div class="section-head">
+      <h2 id="sim-title">Similar documents</h2>
+      <p>Nearest papers by cosine similarity between document vectors.</p>
+    </div>
+    <ul class="similar">
+      {% for s in similar %}
+      <li><a href="/document/{{ s.idx }}">{{ s.doc.title }}</a>
+        <div class="dim">{{ s.doc.year }}{{ ', ' if s.doc.year }}{{ s.doc.category }}; cos = <span class="mono">{{ s.score|num }}</span></div></li>
+      {% else %}<li class="muted">No similar documents found.</li>{% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

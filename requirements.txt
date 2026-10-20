@@ -1,0 +1,5 @@
+flask>=3.0
+pandas>=2.0
+nltk>=3.8
+Sastrawi>=1.0.1
+requests>=2.31

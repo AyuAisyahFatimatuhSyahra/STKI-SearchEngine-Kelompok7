@@ -1,0 +1,6 @@
+id,title,abstract,keyword,category
+1,IoT Smart Classroom,"Penelitian menggunakan sensor IoT untuk meningkatkan pembelajaran digital dengan monitoring realtime","iot sensor education smart classroom","IoT"
+2,Gamification Learning System,"Penelitian menerapkan sistem reward point badge dan leaderboard untuk meningkatkan motivasi belajar","gamification reward badge learning","Gamification"
+3,IoT Gamification Platform,"Sistem menggabungkan ESP32 sensor IoT dengan mekanisme permainan edukasi","iot esp32 gamification education","IoT-Gamification"
+4,Smart Home Monitoring,"Implementasi internet of things menggunakan sensor suhu dan kelembaban","iot sensor smart home","IoT"
+5,Game Based IoT Learning,"Media pembelajaran menggunakan perangkat IoT dan konsep game based learning","game learning iot","IoT-Gamification"

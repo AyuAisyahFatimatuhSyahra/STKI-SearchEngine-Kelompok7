@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block content %}
+
+<section class="hero" aria-labelledby="hero-title">
+  <h1 id="hero-title">Search across {{ '1,000+' if N_DOCS >= 1000 else N_DOCS|thousands }} IoT &amp; Gamification research documents at once.</h1>
+  <p class="lede">Titles, abstracts and keywords are preprocessed, weighted with TF-IDF and ranked by cosine similarity
+    in a Vector Space Model. Every score can be traced back to its numbers.</p>
+
+  <div class="hero-search">
+    {% with q='', category='', show_years=False, large=True, focus=True %}{% include "_searchbar.html" %}{% endwith %}
+    <div class="chips">
+      <span class="chips-label">Try</span>
+      {% for s in samples %}<a class="chip" href="/search?q={{ s|urlencode }}">{{ s }}</a>{% endfor %}
+    </div>
+  </div>
+</section>
+
+<section aria-label="Index statistics">
+  <div class="stat-strip">
+    <div class="stat">
+      <span class="stat-badge">Corpus</span>
+      <div class="stat-num">{{ stats.n_docs|thousands }}</div>
+      <div class="stat-label">Indexed documents</div>
+      <div class="stat-note">title + abstract + keywords</div>
+    </div>
+    <div class="stat">
+      <span class="stat-badge">Lexicon</span>
+      <div class="stat-num">{{ stats.vocab_size|thousands }}</div>
+      <div class="stat-label">Terms / lexicon</div>
+      <div class="stat-note">= vector dimensions</div>
+    </div>
+    <div class="stat">
+      <span class="stat-badge orange">Pipeline</span>
+      <div class="stat-num">{{ stats.total_terms|thousands }}</div>
+      <div class="stat-label">Preprocessed tokens</div>
+      <div class="stat-note">from {{ stats.raw_tokens|thousands }} raw tokens</div>
+    </div>
+    <div class="stat">
+      <span class="stat-badge orange">{{ 'Cache' if stats.from_cache else 'Startup' }}</span>
+      <div class="stat-num">{{ '%.2f'|format(stats.build_seconds) }}<small>s</small></div>
+      <div class="stat-label">Indexing time</div>
+      <div class="stat-note">{{ 'loaded from cache' if stats.from_cache else 'built at startup' }}</div>
+    </div>
+    <div class="stat">
+      <span class="stat-badge">Taxonomy</span>
+      <div class="stat-num">{{ cat_counts|length }}</div>
+      <div class="stat-label">Document categories</div>
+      <div class="stat-note">{{ cat_counts|map(attribute=0)|join(', ') }}</div>
+    </div>
+  </div>
+</section>
+
+{% if recent %}
+<section class="section" aria-labelledby="recent-title">
+  <div class="section-head row">
+    <h2 id="recent-title">Recent searches</h2>
+    <a class="go push tiny" href="/history">Full history</a>
+  </div>
+  <ul class="recent-list">
+    {% for h in recent %}
+    <li>
+      <a class="log-q" href="/search?q={{ h.q|urlencode }}{{ '&category=' ~ (h.category|urlencode) if h.category }}">{{ h.q }}</a>
+      {% if h.category %}<span class="badge" data-cat="{{ h.category|lower|replace(' ', '-') }}">{{ h.category }}</span>{% endif %}
+      <span class="dim push">{{ h.total|thousands }} matches</span>
+      <span class="dim">{{ '%.1f'|format(h.ms) }} ms</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="section" aria-labelledby="flow-title">
+  <div class="section-head">
+    <h2 id="flow-title">How a query is answered</h2>
+    <p>The same pipeline runs on every document at startup and on your query at search time.</p>
+  </div>
+  <ol class="steps">
+    <li><span class="n">1</span><b>Dataset</b>{{ stats.n_docs|thousands }} research titles and abstracts</li>
+    <li><a href="/preprocessing"><span class="n">2</span><b>Preprocessing</b>Case folding, cleaning, tokenizing, stopwords, stemming</a></li>
+    <li><a href="/engine"><span class="n">3</span><b>Indexing</b>Inverted index from term to documents</a></li>
+    <li><a href="/engine"><span class="n">4</span><b>TF-IDF</b>w = tf × log<sub>10</sub>(N / df)</a></li>
+    <li><a href="/engine"><span class="n">5</span><b>VSM</b>Cosine similarity between query and document</a></li>
+    <li><span class="n">6</span><b>Ranking</b>Highest score first; zero scores are dropped</li>
+  </ol>
+</section>
+
+<div class="grid-2 section">
+  <section aria-labelledby="cat-title">
+    <div class="section-head">
+      <h2 id="cat-title">Documents per category</h2>
+    </div>
+    {% set mx = cat_counts[0][1] if cat_counts else 1 %}
+    <div class="bars">
+      {% for c, n in cat_counts %}
+      <div class="bar-row"><a class="name" href="/dataset?category={{ c|urlencode }}">{{ c }}</a>
+        <div class="bar"><span style="width:{{ 100*n/mx }}%"></span></div><div class="val">{{ n|thousands }}</div></div>
+      {% endfor %}
+    </div>
+  </section>
+  <section aria-labelledby="df-title">
+    <div class="section-head">
+      <h2 id="df-title">Most frequent terms</h2>
+      <p>The number is the document frequency (df): how many documents contain the term. A high df means a low IDF weight.</p>
+    </div>
+    <div class="chips">
+      {% for t, df in top_df %}<a class="chip chip-quiet" href="/search?q={{ t|urlencode }}">{{ t }} <small>{{ df|thousands }}</small></a>{% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

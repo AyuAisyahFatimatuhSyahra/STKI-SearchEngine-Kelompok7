@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}{{ ('Results: ' ~ q) if res else 'Search history' }}{% endblock %}
+
+{% macro pager(pg) %}
+{% if pg and pg.pages > 1 %}
+<nav class="pager" aria-label="Result pages">
+  {% set base = '/search?q=' ~ (q|urlencode) ~ '&category=' ~ (category|urlencode) ~ '&year_from=' ~ year_from ~ '&year_to=' ~ year_to %}
+  {% if pg.page > 1 %}<a href="{{ base }}&page={{ pg.page-1 }}" aria-label="Previous">‹</a>{% endif %}
+  {% if pg.window[0] > 1 %}<a href="{{ base }}&page=1">1</a>{% if pg.window[0] > 2 %}<span class="gap">…</span>{% endif %}{% endif %}
+  {% for p in pg.window %}{% if p == pg.page %}<span class="cur" aria-current="page">{{ p }}</span>{% else %}<a href="{{ base }}&page={{ p }}">{{ p }}</a>{% endif %}{% endfor %}
+  {% if pg.window[-1] < pg.pages %}{% if pg.window[-1] < pg.pages-1 %}<span class="gap">…</span>{% endif %}<a href="{{ base }}&page={{ pg.pages }}">{{ pg.pages }}</a>{% endif %}
+  {% if pg.page < pg.pages %}<a href="{{ base }}&page={{ pg.page+1 }}" aria-label="Next">›</a>{% endif %}
+</nav>
+{% endif %}
+{% endmacro %}
+
+{% macro history_log(rows, limit=None) %}
+{% set items = rows[:limit] if limit else rows %}
+<div class="table-scroll">
+  <table class="table">
+    <thead><tr><th>Query</th><th>Searched at</th><th class="num">Matches</th><th class="num">Latency</th><th></th></tr></thead>
+    <tbody>
+    {% for h in items %}
+      {% set href = '/search?q=' ~ (h.q|urlencode) ~ (('&category=' ~ (h.category|urlencode)) if h.category else '') %}
+      <tr>
+        <td><a class="log-q" href="{{ href }}">{{ h.q }}</a>
+          {% if h.category %}<span class="badge" data-cat="{{ h.category|lower|replace(' ', '-') }}" style="margin-left:6px">{{ h.category }}</span>{% endif %}</td>
+        <td class="mono dim" style="white-space:nowrap">{{ h.at }}</td>
+        <td class="num">{{ h.total|thousands }}</td>
+        <td class="num">{{ '%.2f'|format(h.ms) }} ms</td>
+        <td style="text-align:right"><a class="go" href="{{ href }}">Search again</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{% block content %}
+
+{% if res %}
+<!-- ================= SEARCH RESULTS ================= -->
+<header class="page-head" style="display:block">
+  <h1>Results for “{{ q }}”</h1>
+  <div class="mt" style="margin-top:20px">{% with show_years=True, large=False, focus=False %}{% include "_searchbar.html" %}{% endwith %}</div>
+</header>
+
+<div class="result-meta">
+  <span><b>{{ res.results|length|thousands }}</b> relevant of {{ N_DOCS|thousands }} documents</span>
+  <span><b>{{ '%.2f'|format(res.elapsed_ms) }}</b> ms</span>
+  <span>Query terms:
+    {% for t in res.query_rows %}<span class="qterm {{ 'in' if t.in_index else 'out' }}" title="{{ ('df = ' ~ t.df) if t.in_index else 'not in the index' }}">{{ t.term }}</span>{% else %}<i>none</i>{% endfor %}
+  </span>
+  {% if res.results %}<span class="push">Showing {{ pg.start+1 }}–{{ pg.end }}</span>{% endif %}
+</div>
+
+<details class="calc" {{ 'open' if not res.results }} style="margin-top:16px">
+  <summary>Query analysis: preprocessing and TF-IDF query vector</summary>
+  <div class="grid-2 calc-box">
+    <div>
+      <h3 style="font-size:17px;margin-bottom:8px">1. Query preprocessing</h3>
+      <table class="table kv"><tbody>
+        <tr><td>Original query</td><td>{{ res.trace.original }}</td></tr>
+        <tr><td>Case folding + cleaning</td><td class="mono">{{ res.trace.cleaning }}</td></tr>
+        <tr><td>Tokens</td><td>{% for t in res.trace.tokens %}<span class="tok">{{ t }}</span>{% endfor %}</td></tr>
+        <tr><td>Stopwords removed</td><td>{% for t in res.trace.stopwords_removed %}<span class="tok tok-rm">{{ t }}</span>{% else %}<span class="dim">none</span>{% endfor %}</td></tr>
+        <tr><td>Stemming</td><td>{% for m in res.trace.query_mapping %}<span class="tok tok-st">{{ m.token }} <em>→</em> {{ m.term }}</span>{% endfor %}</td></tr>
+      </tbody></table>
+    </div>
+    <div>
+      <h3 style="font-size:17px;margin-bottom:8px">2. Query vector, w(t,q) = tf × idf</h3>
+      <div class="table-scroll"><table class="table">
+        <thead><tr><th>Term</th><th class="num">tf</th><th class="num">df</th><th class="num">idf</th><th class="num">w(t,q)</th></tr></thead>
+        <tbody>
+        {% for r in res.query_rows %}
+          <tr><td class="{{ 'strong' if r.in_index else 'dim' }}">{{ r.term }}{% if not r.in_index %} <small>(not indexed)</small>{% endif %}</td>
+          <td class="num">{{ r.tf }}</td><td class="num">{{ r.df }}</td><td class="num">{{ r.idf|num }}</td><td class="num">{{ r.w|num }}</td></tr>
+        {% endfor %}
+        </tbody>
+        <tfoot><tr><td colspan="4">|q| = √Σ w(t,q)²</td><td class="num">{{ res.query_norm|num }}</td></tr></tfoot>
+      </table></div>
+      <p class="tiny dim mt">N = {{ N_DOCS|thousands }}. Candidate documents (containing at least one query term, via the inverted index): {{ res.candidates|thousands }}.</p>
+    </div>
+  </div>
+</details>
+
+<ol class="hits">
+{% for r in shown %}
+  {% set d = r.doc %}
+  <li class="hit">
+    <div class="hit-rank {{ 'top' if r.rank <= 3 }}">{{ '%02d'|format(r.rank) if r.rank < 100 else r.rank }}</div>
+    <div>
+      <h2 class="hit-title"><a href="/document/{{ r.idx }}?q={{ q|urlencode }}">{{ highlight(d.title, res.terms) }}</a></h2>
+      <div class="hit-meta">
+        <span class="badge" data-cat="{{ (d.category or '')|lower|replace(' ', '-') }}">{{ d.category }}</span>
+        {% if d.year %}<span class="mono">{{ d.year }}</span>{% endif %}
+        {% if d.authors %}<span>{{ d.authors|truncate(70) }}</span>{% endif %}
+        {% if d.venue %}<span><i>{{ d.venue|truncate(50) }}</i></span>{% endif %}
+        <span class="badge badge-lang">{{ d.language }}</span>
+      </div>
+      <p class="hit-snippet">{{ highlight(d.abstract, res.terms, 48) }}</p>
+      <details class="calc">
+        <summary>Cosine calculation ({{ r.matched }} of {{ res.query_rows|selectattr('in_index')|list|length }} query terms matched)</summary>
+        <div class="calc-box">
+          <div class="table-scroll"><table class="table">
+            <thead><tr><th>Term</th><th class="num">tf(t,d)</th><th class="num">w(t,q)</th><th class="num">w(t,d)</th><th class="num">w(t,q) × w(t,d)</th></tr></thead>
+            <tbody>{% for c in r.contrib %}<tr><td class="strong">{{ c.term }}</td><td class="num">{{ c.tf }}</td><td class="num">{{ c.wq|num }}</td><td class="num">{{ c.wd|num }}</td><td class="num">{{ c.prod|num }}</td></tr>{% endfor %}</tbody>
+          </table></div>
+          <div class="formula mt">cos(q,d) = <span class="k">Σ w(t,q)·w(t,d)</span> / ( |q| × |d| ) = {{ r.dot|num }} / ( {{ res.query_norm|num }} × {{ r.doc_norm|num }} ) = <span class="k">{{ r.score|num(6) }}</span></div>
+        </div>
+      </details>
+    </div>
+    <div class="hit-score">
+      <div class="pct">{{ '%.2f'|format(r.score*100) }}%</div>
+      <div class="raw">cos = {{ r.score|num(4) }}</div>
+      <div class="bar"><span style="width:{{ (r.score*100)|round(1) }}%"></span></div>
+    </div>
+  </li>
+{% else %}
+  <li class="empty">
+    <h2>No matching documents</h2>
+    <p>No document contains the query terms{% if category %} in the <b>{{ category }}</b> category{% endif %}. Try another query:</p>
+    <div class="chips">{% for s in samples %}<a class="chip" href="/search?q={{ s|urlencode }}">{{ s }}</a>{% endfor %}</div>
+  </li>
+{% endfor %}
+</ol>
+
+{{ pager(pg) }}
+
+{% if history %}
+<section class="section" aria-labelledby="log-title">
+  <div class="section-head row">
+    <h2 id="log-title">Search history log</h2>
+    {% if history|length > 8 %}<a class="go push tiny" href="/history">All {{ history|length }} searches</a>{% endif %}
+  </div>
+  {{ history_log(history, 8) }}
+</section>
+{% endif %}
+
+{% else %}
+<!-- ================= HISTORY PAGE ================= -->
+<header class="page-head">
+  <div>
+    <h1>Search history log</h1>
+    <p class="lede">Queries run since the server started, newest first, with when they ran, how many documents matched and how long ranking took.</p>
+  </div>
+</header>
+
+<section class="section" style="margin-top:24px" aria-label="Search history">
+  {% if history %}
+    {{ history_log(history) }}
+    <p class="tiny dim mt">The log is kept in memory for the last 50 searches and resets when the app restarts.</p>
+  {% else %}
+    <div class="empty">
+      <h2>No searches yet</h2>
+      <p>Run a query and it will be logged here with its timestamp, match count and latency.</p>
+      <div class="mt" style="max-width:720px;margin:20px auto 0;text-align:left">{% with q='', category='', show_years=False, large=False, focus=True %}{% include "_searchbar.html" %}{% endwith %}</div>
+      <div class="chips">{% for s in samples %}<a class="chip" href="/search?q={{ s|urlencode }}">{{ s }}</a>{% endfor %}</div>
+    </div>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

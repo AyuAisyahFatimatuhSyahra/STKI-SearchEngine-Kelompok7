@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Search{% endblock %} · IoT-GamiSearch</title>
+<meta name="description" content="IoT & Gamification research paper search engine using the Vector Space Model and TF-IDF.">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+
+<header class="site-head">
+  <div class="wrap head-inner">
+    <a href="/" class="brand" aria-label="IoT-GamiSearch home">
+      <span class="brand-name">IoT-<span>Gami</span>Search</span>
+      <span class="brand-sub">IoT &amp; Gamification Research Paper Search Engine | VSM + TF-IDF</span>
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="/" class="{{ 'active' if page=='home' }}" {{ 'aria-current=page' if page=='home' }}>Search</a>
+      <a href="/dataset" class="{{ 'active' if page=='dataset' }}" {{ 'aria-current=page' if page=='dataset' }}>Catalog</a>
+      <a href="/engine" class="{{ 'active' if page=='engine' }}" {{ 'aria-current=page' if page=='engine' }}>Vocabulary</a>
+      <a href="/history" class="{{ 'active' if page in ('history', 'search') }}" {{ 'aria-current=page' if page=='history' }}>History</a>
+      <a href="/preprocessing" class="{{ 'active' if page=='pre' }}" {{ 'aria-current=page' if page=='pre' }}>Preprocessing demo</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page" id="main">
+  <div class="wrap">
+    {% if N_DOCS < TARGET_DOCS %}
+    <div class="notice" role="note">
+      The index currently holds <b>{{ N_DOCS|thousands }}</b> documents from <code>{{ DATASET_FILE }}</code>.
+      Run <code>python scripts/fetch_dataset.py</code> to download the full set of {{ TARGET_DOCS|thousands }} research papers, then restart the app.
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap foot-inner">
+    <div>
+      <p class="foot-brand">IoT-GamiSearch</p>
+      <p>Document search engine using the Vector Space Model and TF-IDF.
+        <b>{{ N_DOCS|thousands }}</b> documents, <b>{{ VOCAB|thousands }}</b> terms indexed.
+        Indexing, weighting and ranking run on the server; the dataset is a CSV file read at startup.</p>
+    </div>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="/engine">Formulas</a>
+      <a href="/api/search?q=smart+home&amp;k=5">JSON API</a>
+      <a href="/dataset">Dataset</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

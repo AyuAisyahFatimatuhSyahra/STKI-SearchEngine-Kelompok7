@@ -6,6 +6,11 @@ Aplikasi web ini melakukan **indeksasi, pembobotan kata, dan perangkingan dokume
 
 ---
 
+## Deploy
+**Publikasi : https://stki-search-engine-kelompok7.vercel.app/engine**
+
+---
+
 ## ✨ Fitur
 
 | No | Fitur | Halaman | Isi |

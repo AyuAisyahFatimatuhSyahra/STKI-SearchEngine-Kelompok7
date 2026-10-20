@@ -403,6 +403,14 @@ def not_found(_):
     return render_template("404.html", page=""), 404
 
 
-if __name__ == "__main__":
+# Muat indeks secara eager agar Vercel Serverless siap saat dipanggil
+try:
     load_index()
+except Exception as e:
+    print(f"[Warning] Gagal memuat indeks awal: {e}")
+
+# Handler WSGI untuk Vercel
+app = app
+
+if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)

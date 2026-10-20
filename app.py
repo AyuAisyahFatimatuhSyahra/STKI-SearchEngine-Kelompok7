@@ -45,12 +45,23 @@ def dataset_path():
 
 def load_index(force=False):
     path = dataset_path()
+    
+    # Gunakan folder /tmp/cache jika di Vercel (karena root directory Vercel bersifat Read-Only)
+    if os.environ.get("VERCEL"):
+        cache_dir = "/tmp/cache"
+    else:
+        cache_dir = os.path.join(BASE, "cache")
+
     if force:
-        cache = os.path.join(BASE, "cache", "index.pkl")
+        cache = os.path.join(cache_dir, "index.pkl")
         if os.path.exists(cache):
-            os.remove(cache)
+            try:
+                os.remove(cache)
+            except Exception:
+                pass
+
     t0 = time.time()
-    STATE["index"] = build_or_load_index(path, os.path.join(BASE, "cache"))
+    STATE["index"] = build_or_load_index(path, cache_dir)
     STATE["path"] = path
     STATE["loaded_at"] = time.time() - t0
     idx = STATE["index"]
@@ -413,4 +424,4 @@ except Exception as e:
 app = app
 
 if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False)
+    app.run(port=5001, debug=True, use_reloader=False)
